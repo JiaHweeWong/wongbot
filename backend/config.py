@@ -2,10 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    llm_provider: str = "gemini"  # "gemini" or "openai"
-    llm_model: str = "gemini-2.5-flash"
-    gemini_api_key: str | None = None
-    openai_api_key: str | None = None
+    # LiteLLM model string — provider/model format e.g. "gemini/gemini-2.5-flash", "openai/gpt-4o"
+    llm_model: str = "gemini/gemini-2.5-flash"
     content_dir: str = "../content"
     rate_limit_per_day: int = 10
     allowed_origins: list[str] = ["http://localhost:3000"]
