@@ -52,3 +52,12 @@ No LangChain, no RAG, no vector DB. Both Gemini and OpenAI SDKs support tool/fun
   - OpenAI: `stream=True` with `tools` param, check for `finish_reason == "tool_calls"`
 - The tool executor logic (slug → ContentService call) can be shared in a simple dict or helper function
 - Keep the skill context in the system prompt as-is — only blog posts move to on-demand tool calls
+
+## Also consider: Docker Compose
+
+Currently `make dev` runs both frontend and backend in one terminal via background processes. Docker Compose would be a cleaner alternative — each service in its own container, single `docker compose up`, closer to production parity.
+
+Worth adding in a future session:
+- `backend/Dockerfile` — Python + uv, copies `content/` in
+- `frontend/Dockerfile` — Node build stage + Next.js server
+- `docker-compose.yml` at repo root — wires both services, mounts `content/` as a volume so edits don't require rebuilds

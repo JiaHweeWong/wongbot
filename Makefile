@@ -1,4 +1,10 @@
-.PHONY: lint fix format check sync-env-example
+.PHONY: dev lint fix format check sync-env-example
+
+dev:
+	@trap 'kill 0' INT; \
+	(cd backend && uv run uvicorn main:app --reload) & \
+	(cd frontend && npm run dev) & \
+	wait
 
 lint:
 	cd backend && uv run ruff check .

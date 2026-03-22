@@ -25,17 +25,16 @@ wongbot/
 
 ## Quick start
 
-### Backend
+**First-time setup:**
 
 ```bash
-cd backend
-cp .env.example .env       # fill in your API key and settings
+cd backend && cp .env.example .env   # add your GEMINI_API_KEY (or OPENAI_API_KEY)
 uv sync
-uv run uvicorn main:app --reload
-# runs on http://localhost:8000
+cd ../frontend && cp .env.local.example .env.local
+npm install
 ```
 
-**Required `.env` vars:**
+**Required `backend/.env` vars:**
 
 ```
 LLM_PROVIDER=gemini         # or "openai"
@@ -44,15 +43,15 @@ GEMINI_API_KEY=...          # required if LLM_PROVIDER=gemini
 OPENAI_API_KEY=...          # required if LLM_PROVIDER=openai
 ```
 
-### Frontend
+**Run everything (single terminal):**
 
 ```bash
-cd frontend
-cp .env.local.example .env.local
-npm install
-npm run dev
-# runs on http://localhost:3000
+make dev
+# backend → http://localhost:8000
+# frontend → http://localhost:3000
 ```
+
+Ctrl+C stops both.
 
 ### Wongbot context
 
