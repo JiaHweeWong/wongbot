@@ -1,0 +1,25 @@
+[project]
+name = "wongbot-backend"
+version = "0.1.0"
+description = "Wongbot personal website backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "google-genai>=1.0.0",
+    "openai>=1.0.0",
+    "pydantic-settings>=2.6.0",
+    "python-frontmatter>=1.1.0",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.9.0"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
