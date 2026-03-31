@@ -1,63 +1,95 @@
-# Next session: blog tool-calling for Wongbot
+# Next session plan
 
-## Goal
+---
 
-Give Wongbot the ability to read blog posts on demand, rather than having all content concatenated into the system prompt at startup. The LLM will decide when to fetch a post based on the conversation.
+## 1. Deploy to production ← do this first
 
-## Approach: native tool/function calling
+### Architecture
 
-No LangChain, no RAG, no vector DB. Both Gemini and OpenAI SDKs support tool/function calling natively. We define tools, the LLM calls them, we execute them and feed results back, the LLM continues.
+Everything on Railway — one platform, one dashboard, one bill.
+
+```
+Browser → jiahwee.com (Railway, frontend service)
+                ↓
+    Railway internal network (Railway, backend service)
+```
+
+### Step-by-step
+
+**1. Create Railway project**
+- Create account at railway.app, connect GitHub repo
+- New project → Deploy from GitHub repo
+
+**2. Add backend service**
+- Add service → GitHub repo
+- Settings → Build:
+  - **Dockerfile path**: `backend/Dockerfile`
+  - **Build context**: `/` (repo root — needed so Dockerfile can copy `content/`)
+- Add env vars:
+  ```
+  LLM_MODEL=gemini/gemini-2.5-flash
+  GEMINI_API_KEY=...
+  CONTENT_DIR=/content
+  RATE_LIMIT_PER_DAY=10
+  ALLOWED_ORIGINS=["https://jiahwee.com", "https://www.jiahwee.com"]
+  ```
+- Railway gives you a URL like `wongbot-backend.up.railway.app` — save this
+
+**3. Add frontend service**
+- Add another service → same GitHub repo
+- Settings → Build:
+  - **Dockerfile path**: `frontend/Dockerfile`
+  - **Build context**: `frontend/`
+- Add env vars:
+  ```
+  NEXT_PUBLIC_API_URL=https://wongbot-backend.up.railway.app
+  API_INTERNAL_URL=http://backend:8000   # if services are on same Railway private network
+  ```
+
+**4. Buy domain on porkbun.com** (e.g. `jiahwee.com`)
+
+**5. Add custom domain to frontend service in Railway**
+- Frontend service → Settings → Networking → Custom Domain → `jiahwee.com`
+- Railway shows exact DNS records to set
+
+**6. Add DNS records in Porkbun**
+- DNS Management → add the records Railway provided
+- Propagates in minutes to ~1 hour
+
+### Notes
+- Railway auto-deploys both services on every push to `main`
+- `content/` is baked into the backend Docker image — update blog posts/skills by pushing to `main`
+
+---
+
+## 2. Blog tool-calling for Wongbot
+
+### Goal
+
+Give Wongbot the ability to read blog posts on demand rather than concatenating everything into the system prompt. The LLM decides when to fetch content based on the conversation.
+
+### Approach: native LiteLLM tool calling
+
+LiteLLM normalises tool/function calling across all providers — this is the big win from switching to LiteLLM. Define tools once, works with Gemini, OpenAI, Anthropic, etc.
 
 **Tools to expose:**
-
-- `list_blog_posts()` — returns list of post slugs, titles, dates, previews
+- `list_blog_posts()` — returns list of slugs, titles, dates, previews
 - `read_blog_post(slug: str)` — returns full markdown content of a post
 
 **Example flow:**
-
 > User: "What have you written about software engineering?"
 > → LLM calls `list_blog_posts()`
-> → sees relevant post "My First Year as an Engineer"
-> → calls `read_blog_post("first-year-engineer")`
+> → sees relevant post, calls `read_blog_post("first-year-engineer")`
 > → answers based on full content
 
-## What needs to change
+### What needs to change
 
-### `services/prompts.py`
-- Define tool schemas (JSON schema format for both Gemini and OpenAI)
-- Update system prompt to mention that blog post tools are available
+- **`services/prompts.py`** — add tool schemas (LiteLLM uses OpenAI-compatible format)
+- **`services/litellm_service.py`** — accept `ContentService` at init, implement tool-call loop in `stream_response`
+- **`main.py`** — pass `content_service` into `LiteLLMService`
+- Keep skill context in system prompt as-is — only blog posts move to on-demand tool calls
 
-### `services/llm_base.py`
-- Update `LLMService` protocol if needed to pass `ContentService` or a tool executor
-
-### `services/gemini.py` — `GeminiService`
-- Accept `ContentService` (or a tool callable dict) at init
-- In `stream_response`: implement the tool-call loop
-  - Stream until a tool call is requested
-  - Execute the tool locally
-  - Inject tool result back into the conversation
-  - Continue streaming
-
-### `services/openai_service.py` — `OpenAIService`
-- Same pattern as Gemini, but using OpenAI's tool call API
-
-### `main.py`
-- Pass `content_service` into the LLM service constructor
-
-## Complexity notes
-
-- Streaming + tool calls is the tricky part: need to pause the stream, execute the tool, re-submit with the result, then resume streaming
-- Both SDKs handle this differently:
-  - Gemini: `generate_content_stream` with `tools` param, check for `function_call` parts in the response
-  - OpenAI: `stream=True` with `tools` param, check for `finish_reason == "tool_calls"`
-- The tool executor logic (slug → ContentService call) can be shared in a simple dict or helper function
-- Keep the skill context in the system prompt as-is — only blog posts move to on-demand tool calls
-
-## Also consider: Docker Compose
-
-Currently `make dev` runs both frontend and backend in one terminal via background processes. Docker Compose would be a cleaner alternative — each service in its own container, single `docker compose up`, closer to production parity.
-
-Worth adding in a future session:
-- `backend/Dockerfile` — Python + uv, copies `content/` in
-- `frontend/Dockerfile` — Node build stage + Next.js server
-- `docker-compose.yml` at repo root — wires both services, mounts `content/` as a volume so edits don't require rebuilds
+### Complexity notes
+- Streaming + tool calls requires pausing the stream, executing the tool, re-submitting with the result, then resuming
+- LiteLLM normalises this: check `finish_reason == "tool_calls"`, execute, re-call with tool result appended to messages
+- Much simpler than doing it with raw Gemini/OpenAI SDKs
