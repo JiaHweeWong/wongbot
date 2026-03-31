@@ -1,10 +1,13 @@
-.PHONY: dev lint fix format check sync-env-example
+.PHONY: dev docker lint fix format check sync-env-example
 
 dev:
 	@trap 'kill 0' INT; \
 	(cd backend && uv run uvicorn main:app --reload) & \
 	(cd frontend && npm run dev) & \
 	wait
+
+docker:
+	docker compose up --build
 
 lint:
 	cd backend && uv run ruff check .
