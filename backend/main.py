@@ -24,3 +24,8 @@ rate_limiter = RateLimiter(limit=settings.rate_limit_per_day)
 
 app.include_router(create_chat_router(llm_service, rate_limiter))
 app.include_router(create_blog_router(content_service))
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
