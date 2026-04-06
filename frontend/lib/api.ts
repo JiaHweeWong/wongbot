@@ -11,7 +11,7 @@ export async function* streamChat(
   message: string,
   history: Message[]
 ): AsyncGenerator<string> {
-  const response = await fetch(`${API_URL}/api/chat`, {
+  const response = await fetch(`/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, history }),
