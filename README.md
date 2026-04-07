@@ -6,86 +6,80 @@ Personal website for Jia Hwee Wong. Wongbot (a pun on "wongbok cabbage 🥬") is
 
 | Layer | Tech |
 |---|---|
-| Frontend | Next.js 16, Tailwind CSS v4, react-markdown |
-| Backend | FastAPI (Python 3.12), uv |
-| LLM | Any LiteLLM-supported model (Gemini, OpenAI, etc.) |
-| Hosting | Railway (frontend + backend) |
+| Frontend + API | Next.js 16, Tailwind CSS v4, react-markdown |
+| LLM | Vercel AI SDK + `@ai-sdk/google` (Gemini) |
+| Rate limiting | Upstash Redis |
+| Hosting | Vercel (free tier) |
 
 ## Project structure
 
 ```
 wongbot/
-├── frontend/         # Next.js app (chat UI + blog)
-├── backend/          # FastAPI app (chat API + blog API)
-├── content/
-│   ├── posts/        # MDX blog posts (public)
-│   └── skills/       # Markdown context files for Wongbot (private)
+├── frontend/
+│   ├── app/
+│   │   └── api/chat/     # Chat API route (LLM + rate limiting)
+│   ├── content/
+│   │   ├── posts/        # MDX blog posts (public)
+│   │   └── skills/       # Markdown context files for Wongbot (private)
+│   └── lib/
+│       ├── content.ts    # Reads blog posts and skills from filesystem
+│       └── prompts.ts    # Wongbot system prompt
+├── backend/              # FastAPI app (local dev / reference only, not deployed)
 ├── docker-compose.yml
 └── Makefile
 ```
 
 ## Quick start
 
-### Local dev (no Docker)
-
 **First-time setup:**
 
 ```bash
-cd backend && cp .env.example .env   # add your API key
-uv sync
-cd ../frontend && cp .env.local.example .env.local
+cd frontend
+cp .env.example .env.local   # fill in your keys
 npm install
+npm run dev                   # → http://localhost:3000
 ```
 
-**`backend/.env` — required vars:**
+**`frontend/.env.local` — required vars:**
 
 ```
-# LiteLLM model string: provider/model-name
-LLM_MODEL=gemini/gemini-2.5-flash
-
-# API key for your chosen provider
-GEMINI_API_KEY=...    # for gemini/* models
-OPENAI_API_KEY=...    # for openai/* models
+GOOGLE_API_KEY=...              # Gemini API key (aistudio.google.com)
+UPSTASH_REDIS_REST_URL=...      # Upstash Redis (upstash.com, free tier)
+UPSTASH_REDIS_REST_TOKEN=...
 ```
 
-**Run (single terminal):**
-
-```bash
-make dev
-# backend → http://localhost:8000
-# frontend → http://localhost:3000
+Optional:
+```
+GEMINI_MODEL=gemini-2.5-flash   # defaults to gemini-2.5-flash if unset
 ```
 
-### Docker
+### Docker (full stack with backend)
 
 ```bash
 make docker   # builds and starts both services via docker compose
 ```
 
-Requires `backend/.env` to exist with your API key. Content edits (`content/`) are reflected live without a rebuild.
+Requires `backend/.env` to exist with your API key. See `backend/.env.example`.
 
 ### Wongbot context
 
-Fill in `content/skills/about.md`, `projects.md`, and `achievements.md` — this is how Wongbot knows about you.
+Fill in `frontend/content/skills/about.md`, `projects.md`, and `achievements.md` — this is how Wongbot knows about you.
 
 ## Makefile
 
 ```bash
-make dev               # run backend + frontend locally (single terminal)
-make docker            # docker compose up --build
-make lint              # ruff check
-make fix               # ruff check --fix
-make format            # ruff format
-make check             # lint + format dry-run
-make sync-env-example  # regenerate .env.example from .env (keys only, no values)
+make docker   # docker compose up --build
+make lint     # ruff check (backend)
+make fix      # ruff check --fix (backend)
+make format   # ruff format (backend)
+make check    # lint + format dry-run
 ```
 
 ## Deployment
 
-Both services hosted on Railway (one platform, one bill).
+Hosted on Vercel. Connect the GitHub repo in the Vercel dashboard with:
 
-- **Backend service**: Dockerfile `backend/Dockerfile`, build context `/` (repo root)
-- **Frontend service**: Dockerfile `frontend/Dockerfile`, build context `frontend/`
-- Custom domain added to the frontend service in Railway, DNS pointed from Porkbun
+- **Root Directory**: `frontend`
+- **Framework Preset**: `Next.js`
 
-See `NEXT_SESSION.md` for the full step-by-step deployment guide.
+Env vars to set in Vercel: `GOOGLE_API_KEY`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`.

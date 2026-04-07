@@ -1,10 +1,7 @@
-.PHONY: dev docker lint fix format check sync-env-example
+.PHONY: dev docker lint fix format check
 
 dev:
-	@trap 'kill 0' INT; \
-	(cd backend && uv run uvicorn main:app --reload) & \
-	(cd frontend && npm run dev) & \
-	wait
+	cd frontend && npm run dev
 
 docker:
 	docker compose up --build
@@ -21,7 +18,3 @@ format:
 check: lint
 	cd backend && uv run ruff format --check .
 
-sync-env-example:
-	@test -f backend/.env || (echo "Error: backend/.env not found" && exit 1)
-	@grep -E '^[^#[:space:]]' backend/.env | sed 's/=.*/=/' > backend/.env.example
-	@echo "Updated backend/.env.example"
