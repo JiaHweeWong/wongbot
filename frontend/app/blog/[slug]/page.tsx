@@ -1,9 +1,10 @@
-import { fetchBlogPost } from "@/lib/api";
+import { getPost } from "@/lib/content";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 interface BlogPostPageProps {
   params: Promise<{ slug: string }>;
@@ -11,7 +12,8 @@ interface BlogPostPageProps {
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
-  const post = await fetchBlogPost(slug);
+  const post = getPost(slug);
+  if (!post) notFound();
 
   return (
     <div className="max-w-2xl mx-auto w-full px-6 py-10">

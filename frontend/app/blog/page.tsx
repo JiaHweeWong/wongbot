@@ -1,15 +1,15 @@
-import { fetchBlogPosts } from "@/lib/api";
+import { listPosts } from "@/lib/content";
 import BlogCard from "@/components/blog/BlogCard";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
 
 export const metadata = {
   title: "Blog | Wongbot",
   description: "Thoughts, projects, and random musings by Jia Hwee.",
 };
 
-export default async function BlogPage() {
-  const posts = await fetchBlogPosts();
+export default function BlogPage() {
+  const posts = listPosts();
 
   return (
     <div className="max-w-2xl mx-auto w-full px-6 py-10">

@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     volumes:
       # Mount content dir so edits to posts/skills don't require a rebuild
-      - ./content:/content
+      - ./frontend/content:/content
     env_file:
       - backend/.env
     environment:
