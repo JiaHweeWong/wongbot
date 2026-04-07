@@ -46,8 +46,10 @@ export async function POST(request: NextRequest) {
     { role: "user" as const, content: message },
   ];
 
+  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+
   const result = streamText({
-    model: google("gemini-2.5-flash"),
+    model: google(model),
     system: systemPrompt,
     messages,
   });
