@@ -14,7 +14,7 @@ RUN uv sync --frozen --no-dev
 COPY backend/ .
 
 # Copy content directory (skills + posts)
-COPY content/ /content
+COPY frontend/content/ /content
 
 ENV CONTENT_DIR=/content
 

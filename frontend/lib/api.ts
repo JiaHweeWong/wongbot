@@ -1,11 +1,4 @@
-import type { BlogPost, BlogPostDetail, Message } from "@/types";
-
-// Server-side (SSR/Docker): use internal container URL if set, fall back to public URL.
-// Client-side (browser): always use the public URL.
-const API_URL =
-  typeof window === "undefined"
-    ? (process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
-    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
+import type { Message } from "@/types";
 
 export async function* streamChat(
   message: string,
@@ -44,18 +37,3 @@ export async function* streamChat(
   }
 }
 
-export async function fetchBlogPosts(): Promise<BlogPost[]> {
-  const response = await fetch(`${API_URL}/api/blog`, {
-    next: { revalidate: 60 },
-  });
-  if (!response.ok) throw new Error("Failed to fetch blog posts");
-  return response.json() as Promise<BlogPost[]>;
-}
-
-export async function fetchBlogPost(slug: string): Promise<BlogPostDetail> {
-  const response = await fetch(`${API_URL}/api/blog/${slug}`, {
-    next: { revalidate: 60 },
-  });
-  if (!response.ok) throw new Error("Failed to fetch blog post");
-  return response.json() as Promise<BlogPostDetail>;
-}
