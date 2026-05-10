@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { streamText } from "ai";
+import { streamText, tool, stepCountIs } from "ai";
+import { z } from "zod";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { loadSkillsContext } from "@/lib/content";
+import { listPosts, getPost, loadSkillsContext } from "@/lib/content";
 import { WONGBOT_SYSTEM_PROMPT } from "@/lib/prompts";
 import type { Message } from "@/types";
 
@@ -52,6 +53,27 @@ export async function POST(request: NextRequest) {
     model: google(model),
     system: systemPrompt,
     messages,
+    tools: {
+      list_blog_posts: tool({
+        description:
+          "List all blog posts with their slugs, titles, dates, and previews. Call this when the user asks about blog posts or what Jia Hwee has written.",
+        inputSchema: z.object({}),
+        execute: async () => listPosts(),
+      }),
+      read_blog_post: tool({
+        description:
+          "Read the full content of a specific blog post by its slug. Call this after listing posts to get full details.",
+        inputSchema: z.object({
+          slug: z.string().describe("The slug of the blog post to read"),
+        }),
+        execute: async ({ slug }) => {
+          const post = getPost(slug);
+          if (!post) return { error: "Post not found" };
+          return post;
+        },
+      }),
+    },
+    stopWhen: stepCountIs(3),
   });
 
   const encoder = new TextEncoder();
