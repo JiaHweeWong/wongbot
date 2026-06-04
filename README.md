@@ -7,7 +7,7 @@ Personal website for Jia Hwee Wong. Wongbot (a pun on "wongbok cabbage 🥬") is
 | Layer | Tech |
 |---|---|
 | Frontend + API | Next.js 16, Tailwind CSS v4, react-markdown |
-| LLM | Vercel AI SDK + `@ai-sdk/google` (Gemini) |
+| LLM orchestration | LangGraph + LangChain Google (Gemini) |
 | Rate limiting | Upstash Redis |
 | Hosting | Vercel (free tier) |
 
@@ -17,7 +17,7 @@ Personal website for Jia Hwee Wong. Wongbot (a pun on "wongbok cabbage 🥬") is
 wongbot/
 ├── frontend/
 │   ├── app/
-│   │   └── api/chat/     # Chat API route (LLM + rate limiting)
+│   │   └── api/chat/     # LangGraph chat route (LLM + tools + rate limiting)
 │   ├── content/
 │   │   ├── posts/        # MDX blog posts (public)
 │   │   └── skills/       # Markdown context files for Wongbot (private)
@@ -63,7 +63,7 @@ Requires `backend/.env` to exist with your API key. See `backend/.env.example`.
 
 ### Wongbot context
 
-Fill in `frontend/content/skills/about.md`, `projects.md`, and `achievements.md` — this is how Wongbot knows about you.
+Fill in `frontend/content/skills/about.md`, `projects.md`, and `achievements.md` — this is how Wongbot knows about you. The chat route can also read these skill files and public blog posts through its LangGraph tools during a conversation.
 
 ## Makefile
 

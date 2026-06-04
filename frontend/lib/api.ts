@@ -1,9 +1,9 @@
-import type { Message } from "@/types";
+import type { ChatStreamEvent, Message } from "@/types";
 
 export async function* streamChat(
   message: string,
   history: Message[]
-): AsyncGenerator<string> {
+): AsyncGenerator<ChatStreamEvent> {
   const response = await fetch(`/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -31,9 +31,12 @@ export async function* streamChat(
       if (line.startsWith("data: ")) {
         const data = line.slice(6);
         if (data === "[DONE]") return;
-        yield JSON.parse(data) as string;
+        const event = JSON.parse(data) as ChatStreamEvent | { type: "error"; message: string };
+        if (event.type === "error") {
+          throw new Error(event.message);
+        }
+        yield event;
       }
     }
   }
 }
-
