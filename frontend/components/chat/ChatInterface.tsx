@@ -20,7 +20,7 @@ export default function ChatInterface() {
       try {
         const parsed = JSON.parse(storedMessages);
         if (isMessageList(parsed)) {
-          setMessages(parsed);
+          setMessages(parsed.filter(isPersistableMessage));
         }
       } catch {
         window.sessionStorage.removeItem(CHAT_STORAGE_KEY);
@@ -32,16 +32,18 @@ export default function ChatInterface() {
   useEffect(() => {
     if (!hasLoadedMessages) return;
 
-    if (messages.length === 0) {
+    const messagesToStore = messages.filter(isPersistableMessage);
+
+    if (messagesToStore.length === 0) {
       window.sessionStorage.removeItem(CHAT_STORAGE_KEY);
       return;
     }
 
-    window.sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+    window.sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messagesToStore));
   }, [hasLoadedMessages, messages]);
 
   async function handleSend(userMessage: string) {
-    const history = messages;
+    const history = messages.filter(isPersistableMessage);
     const newMessages: Message[] = [
       ...history,
       { role: "user", content: userMessage },
@@ -80,8 +82,12 @@ export default function ChatInterface() {
           { role: "model", content: accumulatedContent, toolEvents: [...toolEvents] },
         ]);
       }
+
+      if (!accumulatedContent.trim() && toolEvents.length === 0) {
+        throw new Error("No response received. Please try again.");
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Something went wrong lah!";
+      const message = err instanceof Error ? err.message : "Something went wrong.";
       setError(message);
       // Remove the empty bot message on error
       setMessages(newMessages);
@@ -117,4 +123,9 @@ function isMessage(value: unknown): value is Message {
     (message.role === "user" || message.role === "model") &&
     typeof message.content === "string"
   );
+}
+
+function isPersistableMessage(message: Message): boolean {
+  if (message.role === "user") return message.content.trim().length > 0;
+  return message.content.trim().length > 0 || Boolean(message.toolEvents?.length);
 }

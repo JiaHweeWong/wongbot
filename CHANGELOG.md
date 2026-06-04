@@ -23,3 +23,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Prevent structured chat stream chunks from rendering as `[object Object]`.
+- Prevent empty assistant placeholders from being persisted or rendered as
+  blank chat bubbles.

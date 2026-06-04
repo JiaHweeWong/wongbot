@@ -11,12 +11,15 @@ interface MessageListProps {
 
 export default function MessageList({ messages, isStreaming }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const visibleMessages = messages.filter(
+    (message) => message.role === "user" || message.content.trim() !== "" || message.toolEvents?.length
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  if (messages.length === 0) {
+  if (visibleMessages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-4">
         <span className="text-5xl select-none">🥬</span>
@@ -31,7 +34,7 @@ export default function MessageList({ messages, isStreaming }: MessageListProps)
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6">
       <div className="max-w-2xl mx-auto flex flex-col gap-4">
-        {messages.map((message, index) => (
+        {visibleMessages.map((message, index) => (
           <MessageBubble key={index} message={message} />
         ))}
         {isStreaming && messages[messages.length - 1]?.role === "model" && messages[messages.length - 1]?.content === "" && (
