@@ -1,46 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { streamChat } from "@/lib/api";
 import type { Message } from "@/types";
+import { useChatMessages } from "./ChatProvider";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 
-const CHAT_STORAGE_KEY = "wongbot:chat-history";
-
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [hasLoadedMessages, setHasLoadedMessages] = useState(false);
+  const { messages, setMessages } = useChatMessages();
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const storedMessages = window.sessionStorage.getItem(CHAT_STORAGE_KEY);
-    if (storedMessages) {
-      try {
-        const parsed = JSON.parse(storedMessages);
-        if (isMessageList(parsed)) {
-          setMessages(parsed.filter(isPersistableMessage));
-        }
-      } catch {
-        window.sessionStorage.removeItem(CHAT_STORAGE_KEY);
-      }
-    }
-    setHasLoadedMessages(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hasLoadedMessages) return;
-
-    const messagesToStore = messages.filter(isPersistableMessage);
-
-    if (messagesToStore.length === 0) {
-      window.sessionStorage.removeItem(CHAT_STORAGE_KEY);
-      return;
-    }
-
-    window.sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messagesToStore));
-  }, [hasLoadedMessages, messages]);
 
   async function handleSend(userMessage: string) {
     const history = messages.filter(isPersistableMessage);
@@ -108,20 +78,6 @@ export default function ChatInterface() {
       )}
       <MessageInput onSend={handleSend} isStreaming={isStreaming} />
     </div>
-  );
-}
-
-function isMessageList(value: unknown): value is Message[] {
-  return Array.isArray(value) && value.every(isMessage);
-}
-
-function isMessage(value: unknown): value is Message {
-  if (!value || typeof value !== "object") return false;
-
-  const message = value as Partial<Message>;
-  return (
-    (message.role === "user" || message.role === "model") &&
-    typeof message.content === "string"
   );
 }
 

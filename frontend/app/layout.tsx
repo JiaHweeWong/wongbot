@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ChatProvider } from "@/components/chat/ChatProvider";
 import Nav from "@/components/Nav";
 import "./globals.css";
 
@@ -31,8 +32,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col bg-background text-foreground">
-        <Nav />
-        <main className="flex flex-col flex-1 min-h-0">{children}</main>
+        <ChatProvider>
+          <Nav />
+          <main className="flex flex-col flex-1 min-h-0">{children}</main>
+        </ChatProvider>
         <Analytics />
         <SpeedInsights />
       </body>
