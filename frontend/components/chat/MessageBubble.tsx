@@ -6,6 +6,7 @@ interface MessageBubbleProps {
 
 export default function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const toolCalls = message.toolEvents?.filter((event) => event.type === "call") ?? [];
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -21,8 +22,50 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             : "bg-bot-bubble border border-border text-foreground rounded-bl-sm"
         }`}
       >
+        {toolCalls.length > 0 && (
+          <div className="mb-2 flex flex-col gap-1 whitespace-normal">
+            {toolCalls.map((event) => (
+              <div
+                key={event.id}
+                className="rounded-md border border-border bg-surface-raised px-2 py-1 text-xs text-muted"
+              >
+                <span className="font-medium text-foreground">Tool:</span>{" "}
+                {event.name}
+                <span className="ml-1 text-muted">
+                  {formatToolInput(event.input)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         {message.content}
       </div>
     </div>
   );
+}
+
+function formatToolInput(input: unknown): string {
+  if (
+    input &&
+    typeof input === "object" &&
+    "input" in input &&
+    typeof (input as { input?: unknown }).input === "string"
+  ) {
+    const rawInput = (input as { input: string }).input;
+    try {
+      input = JSON.parse(rawInput);
+    } catch {
+      input = rawInput;
+    }
+  }
+
+  if (!input || (typeof input === "object" && Object.keys(input).length === 0)) {
+    return "";
+  }
+
+  try {
+    return JSON.stringify(input);
+  } catch {
+    return "";
+  }
 }

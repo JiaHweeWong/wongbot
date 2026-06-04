@@ -1,26 +1,153 @@
 import type { NextRequest } from "next/server";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { streamText, tool, stepCountIs } from "ai";
-import { z } from "zod";
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { tool } from "@langchain/core/tools";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { Annotation, messagesStateReducer, START, StateGraph } from "@langchain/langgraph";
+import { ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { listPosts, getPost, loadSkillsContext } from "@/lib/content";
+import { z } from "zod";
+import {
+  getPost,
+  getSkill,
+  listPosts,
+  listSkills,
+  loadSkillsContext,
+} from "@/lib/content";
 import { WONGBOT_SYSTEM_PROMPT } from "@/lib/prompts";
-import type { Message } from "@/types";
+import type { ChatStreamEvent, Message } from "@/types";
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_API_KEY,
+export const runtime = "nodejs";
+
+const googleApiKey = process.env.GOOGLE_API_KEY;
+const modelName = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+
+const model = new ChatGoogleGenerativeAI({
+  model: modelName,
+  apiKey: googleApiKey,
+  temperature: 0.4,
+  streaming: true,
 });
+
+const tools = [
+  tool(async () => JSON.stringify(listPosts()), {
+    name: "list_blog_posts",
+    description:
+      "List all blog posts with their slugs, titles, dates, and previews. Call this when the user asks about blog posts or what Jia Hwee has written.",
+    schema: z.object({}),
+  }),
+  tool(
+    async ({ slug }) => {
+      const post = getPost(slug);
+      if (!post) return JSON.stringify({ error: "Post not found" });
+      return JSON.stringify(post);
+    },
+    {
+      name: "read_blog_post",
+      description:
+        "Read the full content of a specific blog post by its slug. Call this after listing posts to get full details.",
+      schema: z.object({
+        slug: z.string().describe("The slug of the blog post to read"),
+      }),
+    }
+  ),
+  tool(async () => JSON.stringify(listSkills()), {
+    name: "list_skills",
+    description:
+      "List Jia Hwee's skill documents with their slugs, titles, and previews. Call this when the user asks about skills, experience, projects, achievements, or profile details.",
+    schema: z.object({}),
+  }),
+  tool(
+    async ({ slug }) => {
+      const skill = getSkill(slug);
+      if (!skill) return JSON.stringify({ error: "Skill document not found" });
+      return JSON.stringify(skill);
+    },
+    {
+      name: "read_skill",
+      description:
+        "Read the full content of a specific skill document by its slug. Call this when you need precise skill, project, achievement, or profile details.",
+      schema: z.object({
+        slug: z.string().describe("The slug of the skill document to read"),
+      }),
+    }
+  ),
+];
+
+const modelWithTools = model.bindTools(tools);
+const toolNode = new ToolNode(tools);
+
+const AgentState = Annotation.Root({
+  messages: Annotation<BaseMessage[]>({
+    reducer: messagesStateReducer,
+    default: () => [],
+  }),
+  summary: Annotation<string>({
+    reducer: (_current, update) => update,
+    default: () => "",
+  }),
+  lastUserMessage: Annotation<string>({
+    reducer: (_current, update) => update,
+    default: () => "",
+  }),
+});
+
+const skillsContext = loadSkillsContext();
+const baseSystemPrompt = WONGBOT_SYSTEM_PROMPT.replace("{context}", skillsContext);
+
+async function summarizeConversation(state: typeof AgentState.State) {
+  const history = state.messages.slice(0, -1);
+  if (history.length === 0) {
+    return { summary: "No prior conversation history." };
+  }
+
+  const summaryResponse = await model.invoke(
+    [
+      new SystemMessage(
+        "Summarize the prior conversation for the next assistant turn. Keep only durable facts, user preferences, unresolved requests, and important context. Do not answer the user."
+      ),
+      ...history,
+    ],
+    { tags: ["summarizer"] }
+  );
+
+  return {
+    summary: messageContentToText(summaryResponse.content),
+  };
+}
+
+async function callPrimaryNode(state: typeof AgentState.State) {
+  const systemPrompt = `${baseSystemPrompt}
+
+Conversation summary:
+${state.summary || "No prior conversation history."}
+
+Last user message:
+${state.lastUserMessage}`;
+
+  const response = await modelWithTools.invoke(
+    [new SystemMessage(systemPrompt), ...state.messages],
+    { tags: ["primary"] }
+  );
+
+  return { messages: [response] };
+}
+
+const graph = new StateGraph(AgentState)
+  .addNode("summarizer", summarizeConversation)
+  .addNode("primary", callPrimaryNode)
+  .addNode("tools", toolNode)
+  .addEdge(START, "summarizer")
+  .addEdge("summarizer", "primary")
+  .addConditionalEdges("primary", toolsCondition)
+  .addEdge("tools", "primary")
+  .compile();
 
 const ratelimit = new Ratelimit({
   redis: Redis.fromEnv(),
   limiter: Ratelimit.fixedWindow(10, "1 d"),
   prefix: "wongbot:ratelimit",
 });
-
-// Load once per cold start
-const skillsContext = loadSkillsContext();
-const systemPrompt = WONGBOT_SYSTEM_PROMPT.replace("{context}", skillsContext);
 
 export async function POST(request: NextRequest) {
   const ip =
@@ -40,52 +167,46 @@ export async function POST(request: NextRequest) {
   };
 
   const messages = [
-    ...history.map((m) => ({
-      role: (m.role === "model" ? "assistant" : "user") as "user" | "assistant",
-      content: m.content,
-    })),
-    { role: "user" as const, content: message },
+    ...history.map(toLangChainMessage),
+    new HumanMessage(message),
   ];
-
-  const model = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-
-  const result = streamText({
-    model: google(model),
-    system: systemPrompt,
-    messages,
-    tools: {
-      list_blog_posts: tool({
-        description:
-          "List all blog posts with their slugs, titles, dates, and previews. Call this when the user asks about blog posts or what Jia Hwee has written.",
-        inputSchema: z.object({}),
-        execute: async () => listPosts(),
-      }),
-      read_blog_post: tool({
-        description:
-          "Read the full content of a specific blog post by its slug. Call this after listing posts to get full details.",
-        inputSchema: z.object({
-          slug: z.string().describe("The slug of the blog post to read"),
-        }),
-        execute: async ({ slug }) => {
-          const post = getPost(slug);
-          if (!post) return { error: "Post not found" };
-          return post;
-        },
-      }),
-    },
-    stopWhen: stepCountIs(3),
-  });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      for await (const chunk of result.textStream) {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`)
+      try {
+        const events = graph.streamEvents(
+          {
+            messages,
+            lastUserMessage: message,
+          },
+          {
+            version: "v2",
+            recursionLimit: 6,
+          }
         );
+
+        for await (const event of events) {
+          const streamEvent = toChatStreamEvent(event);
+          if (!streamEvent) continue;
+
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(streamEvent)}\n\n`)
+          );
+        }
+
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Chat request failed";
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ type: "error", message })}\n\n`
+          )
+        );
+      } finally {
+        controller.close();
       }
-      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-      controller.close();
     },
   });
 
@@ -95,4 +216,67 @@ export async function POST(request: NextRequest) {
       "Cache-Control": "no-cache",
     },
   });
+}
+
+function toLangChainMessage(message: Message): BaseMessage {
+  if (message.role === "model") {
+    return new AIMessage(message.content);
+  }
+
+  return new HumanMessage(message.content);
+}
+
+function toChatStreamEvent(event: {
+  event: string;
+  name: string;
+  run_id: string;
+  metadata?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+}): ChatStreamEvent | null {
+  if (
+    event.event === "on_chat_model_stream" &&
+    event.metadata?.langgraph_node === "primary"
+  ) {
+    const chunk = event.data?.chunk as { content?: unknown } | undefined;
+    const content = messageContentToText(chunk?.content);
+    if (!content) return null;
+
+    return { type: "text", content };
+  }
+
+  if (event.event === "on_tool_start") {
+    return {
+      type: "tool_call",
+      id: event.run_id,
+      name: event.name,
+      input: event.data?.input ?? {},
+    };
+  }
+
+  if (event.event === "on_tool_end") {
+    return {
+      type: "tool_result",
+      id: event.run_id,
+      name: event.name,
+      output: event.data?.output ?? null,
+    };
+  }
+
+  return null;
+}
+
+function messageContentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part) {
+        const text = (part as { text?: unknown }).text;
+        return typeof text === "string" ? text : "";
+      }
+      return "";
+    })
+    .join("");
 }

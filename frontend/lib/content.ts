@@ -1,7 +1,12 @@
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
-import type { BlogPost, BlogPostDetail } from "@/types";
+import type {
+  BlogPost,
+  BlogPostDetail,
+  SkillDocument,
+  SkillDocumentDetail,
+} from "@/types";
 
 const contentDir = path.join(process.cwd(), "content");
 
@@ -44,6 +49,40 @@ export function getPost(slug: string): BlogPostDetail | null {
     date: String(data.date ?? ""),
     preview,
     content: trimmed,
+  };
+}
+
+export function listSkills(): SkillDocument[] {
+  const skillsDir = path.join(contentDir, "skills");
+  const files = fs.readdirSync(skillsDir).filter((f) => f.endsWith(".md")).sort();
+
+  return files.map((filename) => {
+    const slug = filename.replace(/\.md$/, "");
+    const content = fs.readFileSync(path.join(skillsDir, filename), "utf-8").trim();
+    const words = content.split(/\s+/);
+    const preview = words.slice(0, 30).join(" ") + (words.length > 30 ? "..." : "");
+
+    return {
+      slug,
+      title: slug,
+      preview,
+    };
+  });
+}
+
+export function getSkill(slug: string): SkillDocumentDetail | null {
+  const filePath = path.join(contentDir, "skills", `${slug}.md`);
+  if (!fs.existsSync(filePath)) return null;
+
+  const content = fs.readFileSync(filePath, "utf-8").trim();
+  const words = content.split(/\s+/);
+  const preview = words.slice(0, 30).join(" ") + (words.length > 30 ? "..." : "");
+
+  return {
+    slug,
+    title: slug,
+    preview,
+    content,
   };
 }
 

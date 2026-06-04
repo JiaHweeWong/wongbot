@@ -26,11 +26,29 @@ export default function ChatInterface() {
 
     try {
       let accumulatedContent = "";
+      const toolEvents: Message["toolEvents"] = [];
       for await (const chunk of streamChat(userMessage, history)) {
-        accumulatedContent += chunk;
+        if (chunk.type === "text") {
+          accumulatedContent += chunk.content;
+        } else if (chunk.type === "tool_call") {
+          toolEvents.push({
+            type: "call",
+            id: chunk.id,
+            name: chunk.name,
+            input: chunk.input,
+          });
+        } else if (chunk.type === "tool_result") {
+          toolEvents.push({
+            type: "result",
+            id: chunk.id,
+            name: chunk.name,
+            output: chunk.output,
+          });
+        }
+
         setMessages([
           ...newMessages,
-          { role: "model", content: accumulatedContent },
+          { role: "model", content: accumulatedContent, toolEvents: [...toolEvents] },
         ]);
       }
     } catch (err) {
