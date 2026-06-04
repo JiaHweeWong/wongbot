@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Order blog posts by frontmatter date so newer posts appear first.
 - Make Wongbot's system prompt use Singlish more sparingly.
 - Default Wongbot to Gemini 3 Flash Preview.
+- Preserve Wongbot conversations across in-tab navigation with session storage.
 
 ### Fixed
 - Prevent structured chat stream chunks from rendering as `[object Object]`.
