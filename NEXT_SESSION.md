@@ -27,7 +27,7 @@ Browser → jiahwee.com (Railway, frontend service)
   - **Build context**: `/` (repo root — needed so Dockerfile can copy `content/`)
 - Add env vars:
   ```
-  LLM_MODEL=gemini/gemini-2.5-flash
+  LLM_MODEL=gemini/gemini-3-flash-preview
   GEMINI_API_KEY=...
   CONTENT_DIR=/content
   RATE_LIMIT_PER_DAY=10

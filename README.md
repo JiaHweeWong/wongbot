@@ -50,7 +50,7 @@ UPSTASH_REDIS_REST_TOKEN=...
 
 Optional:
 ```
-GEMINI_MODEL=gemini-2.5-flash   # defaults to gemini-2.5-flash if unset
+GEMINI_MODEL=gemini-3-flash-preview   # defaults to gemini-3-flash-preview if unset
 ```
 
 ### Docker (full stack with backend)
