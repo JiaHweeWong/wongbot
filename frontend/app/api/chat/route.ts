@@ -123,7 +123,12 @@ Conversation summary:
 ${state.summary || "No prior conversation history."}
 
 Last user message:
-${state.lastUserMessage}`;
+${state.lastUserMessage}
+
+Tool use guidance:
+Use tools only when they are needed to answer accurately. After one or two
+tool calls, answer directly unless more information is essential. Do not call
+the same tool repeatedly for the same question.`;
 
   const response = await modelWithTools.invoke(
     [new SystemMessage(systemPrompt), ...state.messages],
@@ -182,7 +187,7 @@ export async function POST(request: NextRequest) {
           },
           {
             version: "v2",
-            recursionLimit: 6,
+            recursionLimit: 12,
           }
         );
 
