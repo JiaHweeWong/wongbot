@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   while Wongbot responds.
 - Add blog posts about building the personal website, critical reflection,
   and AI evaluation gaps.
+- Add Vercel Web Analytics.
 
 ### Changed
 - Order blog posts by frontmatter date so newer posts appear first.
