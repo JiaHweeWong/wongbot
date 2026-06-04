@@ -1,3 +1,5 @@
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { Message } from "@/types";
 
 interface MessageBubbleProps {
@@ -16,9 +18,9 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         </div>
       )}
       <div
-        className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+        className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
           isUser
-            ? "bg-user-bubble text-foreground rounded-br-sm"
+            ? "bg-user-bubble text-foreground rounded-br-sm whitespace-pre-wrap"
             : "bg-bot-bubble border border-border text-foreground rounded-bl-sm"
         }`}
       >
@@ -38,7 +40,15 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             ))}
           </div>
         )}
-        {message.content}
+        {isUser ? (
+          message.content
+        ) : (
+          <div className="prose prose-sm prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-strong:text-foreground">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
     </div>
   );

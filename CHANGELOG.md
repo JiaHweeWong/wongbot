@@ -29,3 +29,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevent empty assistant placeholders from rendering as blank chat bubbles.
 - Reduce LangGraph recursion limit failures by allowing longer tool loops and
   discouraging repeated tool calls.
+- Render markdown formatting in Wongbot responses.
