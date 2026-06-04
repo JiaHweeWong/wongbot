@@ -12,3 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and read-only tools for blog posts and skill documents.
 - Stream chat text and tool activity to the frontend so tool calls are visible
   while Wongbot responds.
+
+### Fixed
+- Prevent structured chat stream chunks from rendering as `[object Object]`.

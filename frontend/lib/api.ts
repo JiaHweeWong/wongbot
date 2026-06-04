@@ -35,6 +35,11 @@ export async function* streamChat(
         if (event.type === "error") {
           throw new Error(event.message);
         }
+
+        if (event.type === "text" && typeof event.content !== "string") {
+          continue;
+        }
+
         yield event;
       }
     }

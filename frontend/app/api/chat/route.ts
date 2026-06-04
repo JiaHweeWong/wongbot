@@ -270,13 +270,29 @@ function messageContentToText(content: unknown): string {
   if (!Array.isArray(content)) return "";
 
   return content
-    .map((part) => {
-      if (typeof part === "string") return part;
-      if (part && typeof part === "object" && "text" in part) {
-        const text = (part as { text?: unknown }).text;
-        return typeof text === "string" ? text : "";
-      }
-      return "";
-    })
+    .map(contentPartToText)
     .join("");
+}
+
+function contentPartToText(part: unknown): string {
+  if (typeof part === "string") return part;
+  if (!part || typeof part !== "object") return "";
+
+  const record = part as Record<string, unknown>;
+  const text = record.text;
+  if (typeof text === "string") return text;
+
+  const content = record.content;
+  if (typeof content === "string") return content;
+
+  const type = record.type;
+  if (
+    type === "text" &&
+    "data" in record &&
+    typeof record.data === "string"
+  ) {
+    return record.data;
+  }
+
+  return "";
 }
