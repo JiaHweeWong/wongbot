@@ -1,0 +1,42 @@
+---
+title: "How I Built This Personal Website"
+date: "2026-06-04"
+---
+
+I finally built a personal website.
+
+Not a portfolio site in the traditional sense. Not a polished landing page with a hero section, a giant profile photo, and five carefully optimised call-to-action buttons.
+
+Instead, the homepage is Wongbot: an AI chatbot that acts as my spokesperson.
+
+Part of the reason is practical. If someone wants to know more about me, my projects, my skills, or what I have been thinking about, a chatbot is a more natural interface than asking them to click through a bunch of static pages.
+
+The other reason is that I simply found it funny.
+
+Wongbot is a pun on wongbok cabbage. It is mildly silly, very on-brand, and somehow memorable enough that I kept the idea.
+
+The site itself is built with Next.js, Tailwind CSS, and a small content system based on local Markdown and MDX files. Blog posts live in `frontend/content/posts`, while profile context lives in `frontend/content/skills`.
+
+The interesting part is the chat architecture.
+
+At first, Wongbot was basically a straightforward model call with a system prompt. It had some context about me, and it could answer questions based on that context. That was enough to get started, but it felt too flat.
+
+So I started moving it toward a more agentic architecture using LangGraph.
+
+The current version has a summarizer node and a primary response node. The summarizer takes the conversation so far and condenses it into useful context. The primary node then receives that summary, the latest user message, and the chat history before responding.
+
+The primary node also has tools. It can list blog posts, read a specific blog post, list skill documents, and read specific skill files. That means Wongbot does not need everything crammed into one enormous prompt forever. It can fetch the right context when needed.
+
+I also wanted the frontend to show tool activity as the model responds. If Wongbot uses a tool, the user should be able to see that something happened instead of waiting silently. It makes the interaction feel more transparent.
+
+There were some rough edges. At one point, structured streamed chunks from the model showed up in the chat bubble as `[object Object]`, which was not exactly the elegant AI experience I had in mind. That forced me to make the stream handling stricter: server-side chunks now get normalised into text, and the client ignores malformed text events.
+
+This is probably the part I enjoyed most. Building the website was not just about making a public profile. It became a small playground for thinking about agent design, tool use, streaming interfaces, and how much autonomy a personal assistant should have.
+
+For now, the blog is still file-based. I write posts as MDX files and commit them into the codebase. It works, but it is not the most elegant publishing workflow. Eventually, I may move the blog content into a CMS so both the website and Wongbot can read from the same source of truth.
+
+But as a first version, I like where it has landed.
+
+It is simple, slightly playful, and useful enough to keep extending.
+
+Most importantly, it feels like mine.

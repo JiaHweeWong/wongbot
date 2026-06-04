@@ -1,0 +1,51 @@
+---
+title: "Is Reliability Just a Feeling? The Evaluation Gap in AI"
+date: "2026-05-14"
+---
+
+I recently attended an event hosted by Lorong AI, and one exchange between a presenter and a venture capitalist has been stuck in my head since.
+
+The presenter was showcasing how AI could transform accounting by automating data entry and complex calculations. During the Q&A, the VC asked a direct question:
+
+> How do you evaluate the performance of your AI in completing these tasks?
+
+The answer was surprisingly candid:
+
+> We do not strictly evaluate the LLM's performance. It has been reliable so far, and our safety net is simply that both sides of the ledger must tally.
+
+Coming from a machine learning background, that felt almost heretical.
+
+In traditional ML, evaluation is everything. You define metrics, construct validation sets, measure performance, track regressions, and only then decide whether the model is good enough. But in the current wave of LLM products, the reality seems much messier.
+
+When I later spoke with the VC during networking, he confirmed my suspicion: many startups are not doing formal AI model evaluation.
+
+That sounds alarming, but it is also understandable.
+
+LLM evaluation is hard. Unlike a classification model or a regression model, there is often no clean ground truth. Quality can be subjective, contextual, and dependent on the user's expectations. A response can be technically correct but unhelpful, concise but incomplete, or fluent but subtly wrong.
+
+Manual evaluation also does not scale. It starts as a few vibe checks, then becomes a spreadsheet, then becomes a painful process that nobody wants to maintain. Building a serious automated evaluation pipeline can feel almost as difficult as building the product itself.
+
+So teams fall into the "good enough" trap. If the output looks right, if the workflow seems smoother, if the ledger balances, then everyone moves on to the next feature.
+
+I do not think this means evaluation is unimportant. But I am starting to wonder whether evaluation alone is the wrong place to put all our safety hopes.
+
+For many LLM systems, especially agentic ones, prevention may be more scalable than trying to grade every possible output.
+
+I have been studying how tools like Claude Code and OpenClaw variants such as IronClaw think about autonomy risk. The pattern that interests me is a move away from unrestricted shell access toward a layered architecture:
+
+- Tool permissions: the model must be explicitly allowed to call a tool.
+- Defense in depth: even permitted tools still run behind constraints such as sandboxing, runtime monitors, or policy checks.
+
+The first layer asks: should the model even be allowed to attempt this action?
+
+The second layer asks: even if the model is allowed, how do we limit the blast radius if it does something undesirable?
+
+This framing feels important. In the LLM space, we may not always be able to guarantee that the model behaves like an A+ student. But we can design systems where certain failures are structurally harder, or even impossible.
+
+That does not remove the need for evaluation. We still need tests, traces, review sets, and regression checks. But for high-impact actions, a passing score is not enough. The architecture itself needs to carry part of the safety burden.
+
+So the question I am left with is this:
+
+Are we trying too hard to measure reliability as a feeling, when we should also be designing systems that prevent the worst failures by construction?
+
+Original LinkedIn post: [Is "Reliability" Just a Feeling? The Evaluation Gap in AI](https://www.linkedin.com/feed/update/urn:li:activity:7459596551234011136/)

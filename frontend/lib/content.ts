@@ -12,25 +12,23 @@ const contentDir = path.join(process.cwd(), "content");
 
 export function listPosts(): BlogPost[] {
   const postsDir = path.join(contentDir, "posts");
-  const files = fs
+  return fs
     .readdirSync(postsDir)
     .filter((f) => f.endsWith(".mdx"))
-    .sort()
-    .reverse();
-
-  return files.map((filename) => {
-    const slug = filename.replace(/\.mdx$/, "");
-    const raw = fs.readFileSync(path.join(postsDir, filename), "utf-8");
-    const { data, content } = matter(raw);
-    const words = content.trim().split(/\s+/);
-    const preview = words.slice(0, 30).join(" ") + (words.length > 30 ? "..." : "");
-    return {
-      slug,
-      title: String(data.title ?? slug),
-      date: String(data.date ?? ""),
-      preview,
-    };
-  });
+    .map((filename) => {
+      const slug = filename.replace(/\.mdx$/, "");
+      const raw = fs.readFileSync(path.join(postsDir, filename), "utf-8");
+      const { data, content } = matter(raw);
+      const words = content.trim().split(/\s+/);
+      const preview = words.slice(0, 30).join(" ") + (words.length > 30 ? "..." : "");
+      return {
+        slug,
+        title: String(data.title ?? slug),
+        date: String(data.date ?? ""),
+        preview,
+      };
+    })
+    .sort((left, right) => right.date.localeCompare(left.date));
 }
 
 export function getPost(slug: string): BlogPostDetail | null {
