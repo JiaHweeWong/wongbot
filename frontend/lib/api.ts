@@ -13,7 +13,7 @@ export async function* streamChat(
       message,
       history,
       summary,
-      summarized_message_count: summarizedMessageCount,
+      summarizedMessageCount,
     }),
   });
 

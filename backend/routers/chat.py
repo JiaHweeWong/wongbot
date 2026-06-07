@@ -19,18 +19,9 @@ def create_chat_router(llm_service: LLMService, rate_limiter: RateLimiter) -> AP
         history = [{"role": msg.role, "content": msg.content} for msg in body.history]
 
         async def generate():
-            try:
-                async for event in llm_service.stream_response(
-                    body.message,
-                    history,
-                    body.summary,
-                    body.summarized_message_count,
-                ):
-                    yield f"data: {json.dumps(event)}\n\n"
-                yield "data: [DONE]\n\n"
-            except Exception as error:
-                event = {"type": "error", "message": str(error) or "Chat request failed"}
-                yield f"data: {json.dumps(event)}\n\n"
+            async for chunk in llm_service.stream_response(body.message, history):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            yield "data: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 

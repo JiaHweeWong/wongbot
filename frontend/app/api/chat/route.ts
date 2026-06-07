@@ -1,37 +1,375 @@
 import type { NextRequest } from "next/server";
+import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { tool } from "@langchain/core/tools";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { Annotation, messagesStateReducer, START, StateGraph } from "@langchain/langgraph";
+import { ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
+import { z } from "zod";
+import {
+  getPost,
+  getSkill,
+  listPosts,
+  listSkills,
+  loadSkillsContext,
+} from "@/lib/content";
+import { WONGBOT_SYSTEM_PROMPT } from "@/lib/prompts";
+import type { ChatStreamEvent, Message } from "@/types";
 
 export const runtime = "nodejs";
 
-const backendUrl =
-  process.env.API_INTERNAL_URL ??
-  process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:8000";
+const RECENT_MESSAGE_LIMIT = 10;
+const SUMMARY_BATCH_SIZE = 5;
+
+const googleApiKey = process.env.GOOGLE_API_KEY;
+const modelName = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
+
+const model = new ChatGoogleGenerativeAI({
+  model: modelName,
+  apiKey: googleApiKey,
+  temperature: 0.4,
+  maxOutputTokens: 700,
+  streaming: true,
+});
+
+const summaryModel = new ChatGoogleGenerativeAI({
+  model: modelName,
+  apiKey: googleApiKey,
+  temperature: 0.4,
+  maxOutputTokens: 300,
+});
+
+const tools = [
+  tool(async () => JSON.stringify(listPosts()), {
+    name: "list_blog_posts",
+    description:
+      "List all blog posts with their slugs, titles, dates, and previews. Call this when the user asks about blog posts or what Jia Hwee has written.",
+    schema: z.object({}),
+  }),
+  tool(
+    async ({ slug }) => {
+      const post = getPost(slug);
+      if (!post) return JSON.stringify({ error: "Post not found" });
+      return JSON.stringify(post);
+    },
+    {
+      name: "read_blog_post",
+      description:
+        "Read the full content of a specific blog post by its slug. Call this after listing posts to get full details.",
+      schema: z.object({
+        slug: z.string().describe("The slug of the blog post to read"),
+      }),
+    }
+  ),
+  tool(async () => JSON.stringify(listSkills()), {
+    name: "list_skills",
+    description:
+      "List Jia Hwee's skill documents with their slugs, titles, and previews. Call this when the user asks about skills, experience, projects, achievements, or profile details.",
+    schema: z.object({}),
+  }),
+  tool(
+    async ({ slug }) => {
+      const skill = getSkill(slug);
+      if (!skill) return JSON.stringify({ error: "Skill document not found" });
+      return JSON.stringify(skill);
+    },
+    {
+      name: "read_skill",
+      description:
+        "Read the full content of a specific skill document by its slug. Call this when you need precise skill, project, achievement, or profile details.",
+      schema: z.object({
+        slug: z.string().describe("The slug of the skill document to read"),
+      }),
+    }
+  ),
+];
+
+const modelWithTools = model.bindTools(tools);
+const toolNode = new ToolNode(tools);
+
+const AgentState = Annotation.Root({
+  messages: Annotation<BaseMessage[]>({
+    reducer: messagesStateReducer,
+    default: () => [],
+  }),
+  summary: Annotation<string>({
+    reducer: (_current, update) => update,
+    default: () => "",
+  }),
+  lastUserMessage: Annotation<string>({
+    reducer: (_current, update) => update,
+    default: () => "",
+  }),
+});
+
+const skillsContext = loadSkillsContext();
+const baseSystemPrompt = WONGBOT_SYSTEM_PROMPT.replace("{context}", skillsContext);
+
+async function updateConversationSummary(
+  existingSummary: string,
+  messages: BaseMessage[]
+): Promise<string> {
+  if (messages.length === 0) return existingSummary;
+  const summaryResponse = await summaryModel.invoke(
+    [
+      new SystemMessage(
+        `Update the conversation summary using the existing summary and new messages.
+Preserve durable facts, user preferences, decisions, unresolved requests,
+commitments, and important context. Resolve contradictions in favor of newer
+messages. Do not answer the user. Return only the updated summary.`
+      ),
+      new HumanMessage(
+        `Existing summary:
+${existingSummary || "No prior conversation summary."}
+
+New messages to incorporate follow.`
+      ),
+      ...messages,
+    ],
+    { tags: ["summarizer"] }
+  );
+
+  return messageContentToText(summaryResponse.content);
+}
+
+async function callPrimaryNode(state: typeof AgentState.State) {
+  const systemPrompt = `${baseSystemPrompt}
+
+Conversation summary:
+${state.summary || "No prior conversation history."}
+
+Last user message:
+${state.lastUserMessage}
+
+Tool use guidance:
+Use tools only when they are needed to answer accurately. After one or two
+tool calls, answer directly unless more information is essential. Do not call
+the same tool repeatedly for the same question.`;
+
+  const response = await modelWithTools.invoke(
+    [new SystemMessage(systemPrompt), ...state.messages],
+    { tags: ["primary"] }
+  );
+
+  return { messages: [response] };
+}
+
+const graph = new StateGraph(AgentState)
+  .addNode("primary", callPrimaryNode)
+  .addNode("tools", toolNode)
+  .addEdge(START, "primary")
+  .addConditionalEdges("primary", toolsCondition)
+  .addEdge("tools", "primary")
+  .compile();
+
+const ratelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.fixedWindow(10, "1 d"),
+  prefix: "wongbot:ratelimit",
+});
+
+const globalRatelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.fixedWindow(100, "1 d"),
+  prefix: "wongbot:global-ratelimit",
+});
 
 export async function POST(request: NextRequest) {
-  const response = await fetch(`${backendUrl}/api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Forwarded-For": getClientIp(request),
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
+
+  const [perIpResult, globalResult] = await Promise.all([
+    ratelimit.limit(ip),
+    globalRatelimit.limit("global"),
+  ]);
+  if (!perIpResult.success) {
+    return Response.json(
+      { detail: "Wah, you very chatty leh! Come back tomorrow." },
+      { status: 429 }
+    );
+  }
+  if (!globalResult.success) {
+    return Response.json(
+      { detail: "Wongbot has reached its daily request budget. Come back tomorrow." },
+      { status: 429 }
+    );
+  }
+
+  const {
+    message,
+    history,
+    summary = "",
+    summarizedMessageCount = 0,
+  } = (await request.json()) as {
+    message: string;
+    history: Message[];
+    summary?: string;
+    summarizedMessageCount?: number;
+  };
+
+  const normalizedHistory = history.map(toLangChainMessage);
+  const agedOutMessageCount = Math.max(
+    0,
+    normalizedHistory.length - RECENT_MESSAGE_LIMIT
+  );
+  const coveredMessageCount = summary
+    ? Math.min(summarizedMessageCount, agedOutMessageCount)
+    : 0;
+  const unsummarizedMessageCount =
+    agedOutMessageCount - coveredMessageCount;
+  const messagesToSummarizeCount =
+    Math.floor(unsummarizedMessageCount / SUMMARY_BATCH_SIZE) *
+    SUMMARY_BATCH_SIZE;
+  const summaryEnd = coveredMessageCount + messagesToSummarizeCount;
+  const updatedSummary = await updateConversationSummary(
+    summary,
+    normalizedHistory.slice(coveredMessageCount, summaryEnd)
+  );
+  const pendingMessages = normalizedHistory.slice(
+    summaryEnd,
+    agedOutMessageCount
+  );
+  const recentMessages = normalizedHistory.slice(-RECENT_MESSAGE_LIMIT);
+  const messages = [
+    ...pendingMessages,
+    ...recentMessages,
+    new HumanMessage(message),
+  ];
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "summary",
+              content: updatedSummary,
+              summarizedMessageCount: summaryEnd,
+            })}\n\n`
+          )
+        );
+
+        const events = graph.streamEvents(
+          {
+            messages,
+            summary: updatedSummary,
+            lastUserMessage: message,
+          },
+          {
+            version: "v2",
+            recursionLimit: 12,
+          }
+        );
+
+        for await (const event of events) {
+          const streamEvent = toChatStreamEvent(event);
+          if (!streamEvent) continue;
+
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(streamEvent)}\n\n`)
+          );
+        }
+
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Chat request failed";
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({ type: "error", message })}\n\n`
+          )
+        );
+      } finally {
+        controller.close();
+      }
     },
-    body: await request.text(),
-    cache: "no-store",
   });
 
-  return new Response(response.body, {
-    status: response.status,
+  return new Response(stream, {
     headers: {
-      "Content-Type":
-        response.headers.get("Content-Type") ?? "text/event-stream",
+      "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
     },
   });
 }
 
-function getClientIp(request: NextRequest): string {
-  return (
-    request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown"
-  );
+function toLangChainMessage(message: Message): BaseMessage {
+  if (message.role === "model") {
+    return new AIMessage(message.content);
+  }
+
+  return new HumanMessage(message.content);
+}
+
+function toChatStreamEvent(event: {
+  event: string;
+  name: string;
+  run_id: string;
+  metadata?: Record<string, unknown>;
+  data?: Record<string, unknown>;
+}): ChatStreamEvent | null {
+  if (
+    event.event === "on_chat_model_stream" &&
+    event.metadata?.langgraph_node === "primary"
+  ) {
+    const chunk = event.data?.chunk as { content?: unknown } | undefined;
+    const content = messageContentToText(chunk?.content);
+    if (!content) return null;
+
+    return { type: "text", content };
+  }
+
+  if (event.event === "on_tool_start") {
+    return {
+      type: "tool_call",
+      id: event.run_id,
+      name: event.name,
+      input: event.data?.input ?? {},
+    };
+  }
+
+  if (event.event === "on_tool_end") {
+    return {
+      type: "tool_result",
+      id: event.run_id,
+      name: event.name,
+      output: event.data?.output ?? null,
+    };
+  }
+
+  return null;
+}
+
+function messageContentToText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+
+  return content
+    .map(contentPartToText)
+    .join("");
+}
+
+function contentPartToText(part: unknown): string {
+  if (typeof part === "string") return part;
+  if (!part || typeof part !== "object") return "";
+
+  const record = part as Record<string, unknown>;
+  const text = record.text;
+  if (typeof text === "string") return text;
+
+  const content = record.content;
+  if (typeof content === "string") return content;
+
+  const type = record.type;
+  if (
+    type === "text" &&
+    "data" in record &&
+    typeof record.data === "string"
+  ) {
+    return record.data;
+  }
+
+  return "";
 }

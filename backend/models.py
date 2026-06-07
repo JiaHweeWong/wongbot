@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class Message(BaseModel):
@@ -8,9 +8,7 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
-    history: list[Message] = Field(default_factory=list)
-    summary: str = ""
-    summarized_message_count: int = Field(default=0, ge=0)
+    history: list[Message] = []
 
 
 class BlogPost(BaseModel):
