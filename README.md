@@ -29,6 +29,10 @@ wongbot/
 └── Makefile
 ```
 
+## Agent architecture
+
+![Wongbot agent architecture](docs/agent-architecture.svg)
+
 ## Quick start
 
 **First-time setup:**
@@ -64,6 +68,16 @@ Requires `backend/.env` to exist with your API key. See `backend/.env.example`.
 ### Wongbot context
 
 Fill in `frontend/content/skills/about.md`, `projects.md`, and `achievements.md` — this is how Wongbot knows about you. The chat route can also read these skill files and public blog posts through its LangGraph tools during a conversation.
+
+### Conversation management
+
+Wongbot keeps the latest 10 messages verbatim. Messages that move outside that
+window are incorporated into a rolling summary in batches of five. Incomplete
+batches remain in the primary model context until the next summary update, so
+no conversation context is dropped.
+
+Primary responses are capped at 700 output tokens and summaries at 300. Upstash
+limits usage to 10 requests per IP and 100 requests globally each day.
 
 ## Makefile
 

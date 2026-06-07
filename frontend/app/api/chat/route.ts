@@ -19,6 +19,9 @@ import type { ChatStreamEvent, Message } from "@/types";
 
 export const runtime = "nodejs";
 
+const RECENT_MESSAGE_LIMIT = 10;
+const SUMMARY_BATCH_SIZE = 5;
+
 const googleApiKey = process.env.GOOGLE_API_KEY;
 const modelName = process.env.GEMINI_MODEL ?? "gemini-3-flash-preview";
 
@@ -26,7 +29,15 @@ const model = new ChatGoogleGenerativeAI({
   model: modelName,
   apiKey: googleApiKey,
   temperature: 0.4,
+  maxOutputTokens: 700,
   streaming: true,
+});
+
+const summaryModel = new ChatGoogleGenerativeAI({
+  model: modelName,
+  apiKey: googleApiKey,
+  temperature: 0.4,
+  maxOutputTokens: 300,
 });
 
 const tools = [
@@ -95,25 +106,31 @@ const AgentState = Annotation.Root({
 const skillsContext = loadSkillsContext();
 const baseSystemPrompt = WONGBOT_SYSTEM_PROMPT.replace("{context}", skillsContext);
 
-async function summarizeConversation(state: typeof AgentState.State) {
-  const history = state.messages.slice(0, -1);
-  if (history.length === 0) {
-    return { summary: "No prior conversation history." };
-  }
-
-  const summaryResponse = await model.invoke(
+async function updateConversationSummary(
+  existingSummary: string,
+  messages: BaseMessage[]
+): Promise<string> {
+  if (messages.length === 0) return existingSummary;
+  const summaryResponse = await summaryModel.invoke(
     [
       new SystemMessage(
-        "Summarize the prior conversation for the next assistant turn. Keep only durable facts, user preferences, unresolved requests, and important context. Do not answer the user."
+        `Update the conversation summary using the existing summary and new messages.
+Preserve durable facts, user preferences, decisions, unresolved requests,
+commitments, and important context. Resolve contradictions in favor of newer
+messages. Do not answer the user. Return only the updated summary.`
       ),
-      ...history,
+      new HumanMessage(
+        `Existing summary:
+${existingSummary || "No prior conversation summary."}
+
+New messages to incorporate follow.`
+      ),
+      ...messages,
     ],
     { tags: ["summarizer"] }
   );
 
-  return {
-    summary: messageContentToText(summaryResponse.content),
-  };
+  return messageContentToText(summaryResponse.content);
 }
 
 async function callPrimaryNode(state: typeof AgentState.State) {
@@ -139,11 +156,9 @@ the same tool repeatedly for the same question.`;
 }
 
 const graph = new StateGraph(AgentState)
-  .addNode("summarizer", summarizeConversation)
   .addNode("primary", callPrimaryNode)
   .addNode("tools", toolNode)
-  .addEdge(START, "summarizer")
-  .addEdge("summarizer", "primary")
+  .addEdge(START, "primary")
   .addConditionalEdges("primary", toolsCondition)
   .addEdge("tools", "primary")
   .compile();
@@ -154,25 +169,71 @@ const ratelimit = new Ratelimit({
   prefix: "wongbot:ratelimit",
 });
 
+const globalRatelimit = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.fixedWindow(100, "1 d"),
+  prefix: "wongbot:global-ratelimit",
+});
+
 export async function POST(request: NextRequest) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
 
-  const { success } = await ratelimit.limit(ip);
-  if (!success) {
+  const [perIpResult, globalResult] = await Promise.all([
+    ratelimit.limit(ip),
+    globalRatelimit.limit("global"),
+  ]);
+  if (!perIpResult.success) {
     return Response.json(
       { detail: "Wah, you very chatty leh! Come back tomorrow." },
       { status: 429 }
     );
   }
+  if (!globalResult.success) {
+    return Response.json(
+      { detail: "Wongbot has reached its daily request budget. Come back tomorrow." },
+      { status: 429 }
+    );
+  }
 
-  const { message, history } = (await request.json()) as {
+  const {
+    message,
+    history,
+    summary = "",
+    summarizedMessageCount = 0,
+  } = (await request.json()) as {
     message: string;
     history: Message[];
+    summary?: string;
+    summarizedMessageCount?: number;
   };
 
+  const normalizedHistory = history.map(toLangChainMessage);
+  const agedOutMessageCount = Math.max(
+    0,
+    normalizedHistory.length - RECENT_MESSAGE_LIMIT
+  );
+  const coveredMessageCount = summary
+    ? Math.min(summarizedMessageCount, agedOutMessageCount)
+    : 0;
+  const unsummarizedMessageCount =
+    agedOutMessageCount - coveredMessageCount;
+  const messagesToSummarizeCount =
+    Math.floor(unsummarizedMessageCount / SUMMARY_BATCH_SIZE) *
+    SUMMARY_BATCH_SIZE;
+  const summaryEnd = coveredMessageCount + messagesToSummarizeCount;
+  const updatedSummary = await updateConversationSummary(
+    summary,
+    normalizedHistory.slice(coveredMessageCount, summaryEnd)
+  );
+  const pendingMessages = normalizedHistory.slice(
+    summaryEnd,
+    agedOutMessageCount
+  );
+  const recentMessages = normalizedHistory.slice(-RECENT_MESSAGE_LIMIT);
   const messages = [
-    ...history.map(toLangChainMessage),
+    ...pendingMessages,
+    ...recentMessages,
     new HumanMessage(message),
   ];
 
@@ -180,9 +241,20 @@ export async function POST(request: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: "summary",
+              content: updatedSummary,
+              summarizedMessageCount: summaryEnd,
+            })}\n\n`
+          )
+        );
+
         const events = graph.streamEvents(
           {
             messages,
+            summary: updatedSummary,
             lastUserMessage: message,
           },
           {
