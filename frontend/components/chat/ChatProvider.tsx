@@ -6,30 +6,15 @@ import type { Message } from "@/types";
 interface ChatContextValue {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  summary: string;
-  setSummary: React.Dispatch<React.SetStateAction<string>>;
-  summarizedMessageCount: number;
-  setSummarizedMessageCount: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [summary, setSummary] = useState("");
-  const [summarizedMessageCount, setSummarizedMessageCount] = useState(0);
 
   return (
-    <ChatContext.Provider
-      value={{
-        messages,
-        setMessages,
-        summary,
-        setSummary,
-        summarizedMessageCount,
-        setSummarizedMessageCount,
-      }}
-    >
+    <ChatContext.Provider value={{ messages, setMessages }}>
       {children}
     </ChatContext.Provider>
   );

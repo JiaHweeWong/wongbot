@@ -1,7 +1,4 @@
-from collections.abc import AsyncGenerator
-from typing import Any, Protocol
-
-ChatStreamEvent = dict[str, Any]
+from typing import AsyncGenerator, Protocol
 
 
 class LLMService(Protocol):
@@ -9,6 +6,4 @@ class LLMService(Protocol):
         self,
         message: str,
         history: list[dict],
-        summary: str = "",
-        summarized_message_count: int = 0,
-    ) -> AsyncGenerator[ChatStreamEvent, None]: ...
+    ) -> AsyncGenerator[str, None]: ...
