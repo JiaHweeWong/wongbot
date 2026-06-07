@@ -8,7 +8,14 @@ import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 
 export default function ChatInterface() {
-  const { messages, setMessages } = useChatMessages();
+  const {
+    messages,
+    setMessages,
+    summary,
+    setSummary,
+    summarizedMessageCount,
+    setSummarizedMessageCount,
+  } = useChatMessages();
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,8 +35,16 @@ export default function ChatInterface() {
     try {
       let accumulatedContent = "";
       const toolEvents: Message["toolEvents"] = [];
-      for await (const chunk of streamChat(userMessage, history)) {
-        if (chunk.type === "text") {
+      for await (const chunk of streamChat(
+        userMessage,
+        history,
+        summary,
+        summarizedMessageCount
+      )) {
+        if (chunk.type === "summary") {
+          setSummary(chunk.content);
+          setSummarizedMessageCount(chunk.summarizedMessageCount);
+        } else if (chunk.type === "text") {
           accumulatedContent += chunk.content;
         } else if (chunk.type === "tool_call") {
           toolEvents.push({
