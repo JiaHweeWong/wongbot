@@ -2,12 +2,19 @@ import type { ChatStreamEvent, Message } from "@/types";
 
 export async function* streamChat(
   message: string,
-  history: Message[]
+  history: Message[],
+  summary: string,
+  summarizedMessageCount: number
 ): AsyncGenerator<ChatStreamEvent> {
   const response = await fetch(`/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({
+      message,
+      history,
+      summary,
+      summarized_message_count: summarizedMessageCount,
+    }),
   });
 
   if (!response.ok) {

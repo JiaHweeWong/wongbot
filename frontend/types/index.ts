@@ -28,6 +28,11 @@ export interface SkillDocumentDetail extends SkillDocument {
 }
 
 export type ChatStreamEvent =
+  | {
+      type: "summary";
+      content: string;
+      summarizedMessageCount: number;
+    }
   | { type: "text"; content: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }
   | { type: "tool_result"; id: string; name: string; output: unknown };

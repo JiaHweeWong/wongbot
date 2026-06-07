@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="860" viewBox="0 0 1200 860" role="img" aria-labelledby="title desc">
+  <title id="title">Wongbot agent architecture</title>
+  <desc id="desc">Request, summarization, tool execution, and streaming flow between the browser, Next.js proxy, FastAPI backend, LiteLLM models, and content files.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .background { fill: #f8fafc; }
+      .box { fill: #ffffff; stroke: #334155; stroke-width: 2; rx: 12; }
+      .model { fill: #eef2ff; stroke: #4f46e5; }
+      .tool { fill: #ecfdf5; stroke: #059669; }
+      .transport { fill: #eff6ff; stroke: #2563eb; }
+      .label { fill: #0f172a; font: 600 17px system-ui, sans-serif; text-anchor: middle; }
+      .detail { fill: #475569; font: 14px system-ui, sans-serif; text-anchor: middle; }
+      .edge { fill: none; stroke: #64748b; stroke-width: 2; marker-end: url(#arrow); }
+      .edge-label { fill: #334155; font: 13px system-ui, sans-serif; text-anchor: middle; }
+      .section { fill: #334155; font: 700 16px system-ui, sans-serif; letter-spacing: 1px; }
+    </style>
+  </defs>
+
+  <rect class="background" width="1200" height="860" rx="16"/>
+
+  <text class="section" x="50" y="48">CLIENT AND TRANSPORT</text>
+  <rect class="box transport" x="50" y="75" width="230" height="82"/>
+  <text class="label" x="165" y="108">Browser chat UI</text>
+  <text class="detail" x="165" y="134">messages + summary state</text>
+
+  <rect class="box transport" x="380" y="75" width="230" height="82"/>
+  <text class="label" x="495" y="108">Next.js proxy</text>
+  <text class="detail" x="495" y="134">/api/chat</text>
+
+  <rect class="box transport" x="710" y="75" width="230" height="82"/>
+  <text class="label" x="825" y="108">FastAPI endpoint</text>
+  <text class="detail" x="825" y="134">SSE + per-IP/global budgets</text>
+
+  <path class="edge" d="M280 116 H380"/>
+  <text class="edge-label" x="330" y="101">request</text>
+  <path class="edge" d="M610 116 H710"/>
+  <text class="edge-label" x="660" y="101">proxy</text>
+
+  <text class="section" x="50" y="230">CONVERSATION ORCHESTRATION</text>
+  <rect class="box" x="380" y="255" width="300" height="92"/>
+  <text class="label" x="530" y="291">Context manager</text>
+  <text class="detail" x="530" y="318">summary + latest 10 messages</text>
+
+  <path class="edge" d="M825 157 V210 H680 V276"/>
+  <text class="edge-label" x="758" y="202">validated request</text>
+
+  <rect class="box model" x="50" y="430" width="300" height="100"/>
+  <text class="label" x="200" y="469">LiteLLM summarizer</text>
+  <text class="detail" x="200" y="496">summarizes aged-out context</text>
+  <text class="detail" x="200" y="516">in five-message batches</text>
+
+  <rect class="box model" x="455" y="430" width="300" height="100"/>
+  <text class="label" x="605" y="469">LiteLLM primary agent</text>
+  <text class="detail" x="605" y="496">bounded response and tool loop</text>
+
+  <path class="edge" d="M455 301 H200 V430"/>
+  <text class="edge-label" x="286" y="286">existing summary + aged-out messages</text>
+  <path class="edge" d="M530 347 V430"/>
+  <text class="edge-label" x="625" y="389">summary + latest 10</text>
+  <path class="edge" d="M200 430 V380 H455"/>
+  <text class="edge-label" x="318" y="369">updated summary</text>
+
+  <text class="section" x="50" y="615">READ-ONLY TOOL EXECUTION</text>
+  <rect class="box tool" x="455" y="640" width="300" height="100"/>
+  <text class="label" x="605" y="679">Content tools</text>
+  <text class="detail" x="605" y="706">list/read posts and skills</text>
+
+  <rect class="box tool" x="850" y="640" width="300" height="100"/>
+  <text class="label" x="1000" y="679">Content files</text>
+  <text class="detail" x="1000" y="706">Markdown skills + MDX posts</text>
+
+  <path class="edge" d="M605 530 V640"/>
+  <text class="edge-label" x="664" y="589">tool call</text>
+  <path class="edge" d="M755 690 H850"/>
+  <text class="edge-label" x="802" y="675">read</text>
+  <path class="edge" d="M850 720 H755"/>
+  <text class="edge-label" x="802" y="749">result</text>
+
+  <path class="edge" d="M755 470 H1030 V195 H900 V157"/>
+  <text class="edge-label" x="1020" y="345">text + tool SSE events</text>
+  <path class="edge" d="M380 301 H320 V195 H120 V157"/>
+  <text class="edge-label" x="218" y="214">hidden summary SSE event</text>
+
+  <text class="detail" x="600" y="820">Responses flow back through FastAPI and the Next.js proxy to the browser.</text>
+</svg>

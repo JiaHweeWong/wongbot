@@ -31,6 +31,9 @@ Browser → jiahwee.com (Railway, frontend service)
   GEMINI_API_KEY=...
   CONTENT_DIR=/content
   RATE_LIMIT_PER_DAY=10
+  GLOBAL_RATE_LIMIT_PER_DAY=100
+  MAX_RESPONSE_TOKENS=700
+  MAX_SUMMARY_TOKENS=300
   ALLOWED_ORIGINS=["https://jiahwee.com", "https://www.jiahwee.com"]
   ```
 - Railway gives you a URL like `wongbot-backend.up.railway.app` — save this
@@ -39,7 +42,7 @@ Browser → jiahwee.com (Railway, frontend service)
 - Add another service → same GitHub repo
 - Settings → Build:
   - **Dockerfile path**: `frontend/Dockerfile`
-  - **Build context**: `frontend/`
+  - **Build context**: `/` (repo root)
 - Add env vars:
   ```
   NEXT_PUBLIC_API_URL=https://wongbot-backend.up.railway.app
@@ -58,38 +61,7 @@ Browser → jiahwee.com (Railway, frontend service)
 
 ### Notes
 - Railway auto-deploys both services on every push to `main`
-- `content/` is baked into the backend Docker image — update blog posts/skills by pushing to `main`
-
----
-
-## 2. Blog tool-calling for Wongbot
-
-### Goal
-
-Give Wongbot the ability to read blog posts on demand rather than concatenating everything into the system prompt. The LLM decides when to fetch content based on the conversation.
-
-### Approach: native LiteLLM tool calling
-
-LiteLLM normalises tool/function calling across all providers — this is the big win from switching to LiteLLM. Define tools once, works with Gemini, OpenAI, Anthropic, etc.
-
-**Tools to expose:**
-- `list_blog_posts()` — returns list of slugs, titles, dates, previews
-- `read_blog_post(slug: str)` — returns full markdown content of a post
-
-**Example flow:**
-> User: "What have you written about software engineering?"
-> → LLM calls `list_blog_posts()`
-> → sees relevant post, calls `read_blog_post("first-year-engineer")`
-> → answers based on full content
-
-### What needs to change
-
-- **`services/prompts.py`** — add tool schemas (LiteLLM uses OpenAI-compatible format)
-- **`services/litellm_service.py`** — accept `ContentService` at init, implement tool-call loop in `stream_response`
-- **`main.py`** — pass `content_service` into `LiteLLMService`
-- Keep skill context in system prompt as-is — only blog posts move to on-demand tool calls
-
-### Complexity notes
-- Streaming + tool calls requires pausing the stream, executing the tool, re-submitting with the result, then resuming
-- LiteLLM normalises this: check `finish_reason == "tool_calls"`, execute, re-call with tool result appended to messages
-- Much simpler than doing it with raw Gemini/OpenAI SDKs
+- `frontend/content/` is baked into the backend Docker image — update blog
+  posts/skills by pushing to `main`
+- The Python agent in `backend/services/agent.py` owns summarization, tool
+  execution, and streamed responses.
