@@ -13,8 +13,8 @@ export default function BlogPage() {
 
   return (
     <div className="max-w-2xl mx-auto w-full px-6 py-10">
-      <h1 className="text-2xl font-bold text-foreground mb-1">Blog</h1>
-      <p className="text-sm text-muted mb-8">Thoughts, projects, and random musings.</p>
+      <h1 className="font-display text-4xl font-bold text-foreground mb-2">Blog</h1>
+      <p className="text-sm text-muted mb-10 font-mono tracking-wide">Thoughts, projects, and random musings.</p>
       {posts.length === 0 ? (
         <p className="text-muted text-sm">No posts yet. Check back soon lah!</p>
       ) : (

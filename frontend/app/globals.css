@@ -2,16 +2,16 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --background: #0d0d0d;
-  --surface: #161616;
-  --surface-raised: #1e1e1e;
-  --border: #2a2a2a;
-  --foreground: #f0f0f0;
-  --muted: #888888;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --user-bubble: #1e3a5f;
-  --bot-bubble: #1e1e1e;
+  --background: #0f0d0b;
+  --surface: #1c1814;
+  --surface-raised: #252018;
+  --border: #3a2e20;
+  --foreground: #f0e8d8;
+  --muted: #9a8870;
+  --accent: #d4a76a;
+  --accent-hover: #c49355;
+  --user-bubble: #3d2d0f;
+  --bot-bubble: #1c1814;
 }
 
 @theme inline {
@@ -27,10 +27,13 @@
   --color-bot-bubble: var(--bot-bubble);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-fraunces);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image: radial-gradient(ellipse 100% 55% at 50% 0%, #5a2c08 0%, #2a1506 35%, transparent 65%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
@@ -45,4 +48,69 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
+}
+
+/* Hide scrollbar inside textarea — it auto-expands so the bar is just noise */
+textarea::-webkit-scrollbar {
+  display: none;
+}
+textarea {
+  scrollbar-width: none;
+}
+
+/* Message bubble animations — iMessage-style spring pop */
+@keyframes bubble-in-right {
+  0% {
+    opacity: 0;
+    transform: translateX(32px) scale(0.84);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-6px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes bubble-in-left {
+  0% {
+    opacity: 0;
+    transform: translateX(-32px) scale(0.84);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(6px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.animate-bubble-right {
+  animation: bubble-in-right 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: bottom right;
+}
+
+.animate-bubble-left {
+  animation: bubble-in-left 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: bottom left;
+}
+
+/* Chip hover */
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-chip-in {
+  animation: chip-in 0.3s ease-out both;
 }

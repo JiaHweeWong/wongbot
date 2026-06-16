@@ -33,7 +33,7 @@ export default function MessageInput({ onSend, isStreaming }: MessageInputProps)
   }
 
   return (
-    <div className="border-t border-border bg-surface px-4 py-4">
+    <div className="px-4 pb-4 pt-2">
       <div className="max-w-2xl mx-auto flex items-end gap-3">
         <textarea
           ref={textareaRef}

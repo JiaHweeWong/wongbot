@@ -11,7 +11,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
   const toolCalls = message.toolEvents?.filter((event) => event.type === "call") ?? [];
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+    <div className={`flex ${isUser ? "justify-end animate-bubble-right" : "justify-start animate-bubble-left"}`}>
       {!isUser && (
         <div className="flex-shrink-0 w-7 h-7 rounded-full bg-surface-raised border border-border flex items-center justify-center text-sm mr-2 mt-0.5 select-none">
           🥬

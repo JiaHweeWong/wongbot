@@ -83,7 +83,7 @@ export default function ChatInterface() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <MessageList messages={messages} isStreaming={isStreaming} />
+      <MessageList messages={messages} isStreaming={isStreaming} onSuggestion={handleSend} />
       {error && (
         <div className="max-w-2xl mx-auto w-full px-4 pb-2">
           <p className="text-sm text-red-400 bg-red-950/30 border border-red-900/50 rounded-lg px-3 py-2">
